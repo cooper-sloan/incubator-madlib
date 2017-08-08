@@ -42,15 +42,9 @@ template <class State, class ConstState, class Task>
 void
 Batch<State, ConstState, Task>::transition(state_type &state,
         const tuple_type &tuple) {
-    // The reason for update model inside a Task:: function instead of
-    // returning the gradient and do it here: the gradient is a sparse
-    // representation of the model (which is dense), returning the gradient
-    // forces the algo to be aware of one more template type
-    // -- Task::sparse_model_type, which we do not explicit define
-
-    // apply to the model directly
-    Task::gradientInPlace(
+    Task::incrementGradient(
             state.task.model,
+            state.algo.incrModel,
             tuple.indVar,
             tuple.depVar,
             state.task.stepsize * tuple.weight);
@@ -60,9 +54,6 @@ template <class State, class ConstState, class Task>
 void
 Batch<State, ConstState, Task>::merge(state_type &state,
         const_state_type &otherState) {
-    // Having zero checking here to reduce dependency to the caller.
-    // This can be removed if it affects performance in the future,
-    // with the expectation that callers should do the zero checking.
     if (state.algo.numRows == 0) {
         state.algo.incrModel = otherState.algo.incrModel;
         return;
@@ -71,26 +62,20 @@ Batch<State, ConstState, Task>::merge(state_type &state,
     }
 
     // The reason of this weird algorithm instead of an intuitive one
-    // -- (w1 * m1 + w2 * m2) / (w1 + w2): we have only one mutable state,
-    // therefore, (m1 * w1 / w2  + m2)  * w2 / (w1 + w2).
-    // Order:         111111111  22222  3333333333333333
-
-    // model averaging, weighted by rows seen
+    // -- (w1 * m1 + w2 * m2): we have only one mutable state,
+    // therefore, (m1 * w1 / w2  + m2)  * w2.
     double totalNumRows = static_cast<double>(state.algo.numRows + otherState.algo.numRows);
     state.algo.incrModel *= static_cast<double>(state.algo.numRows) /
         static_cast<double>(otherState.algo.numRows);
     state.algo.incrModel += otherState.algo.incrModel;
-    state.algo.incrModel *= static_cast<double>(otherState.algo.numRows) /
-        static_cast<double>(totalNumRows);
+    state.algo.incrModel *= static_cast<double>(otherState.algo.numRows);
 }
 
 template <class State, class ConstState, class Task>
 void
 Batch<State, ConstState, Task>::final(state_type &state) {
-    // The reason that we have to keep the task.model untouched in transition
-    // funtion: loss computation needs the model from last iteration cleanly
-
-    state.task.model = state.algo.incrModel;
+    //state.algo.incrModel *= 1/static_cast<double>(state.algo.numRows);
+    state.task.model += state.algo.incrModel;
 }
 
 } // namespace convex

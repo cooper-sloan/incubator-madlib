@@ -31,6 +31,7 @@
 #include "task/mlp.hpp"
 #include "task/l2.hpp"
 #include "algo/igd.hpp"
+#include "algo/batch.hpp"
 #include "algo/loss.hpp"
 
 #include "type/tuple.hpp"
@@ -44,7 +45,7 @@ namespace modules {
 namespace convex {
 
 // These 2 classes contain public static methods that can be called
-typedef IGD<MLPIGDState<MutableArrayHandle<double> >, MLPIGDState<ArrayHandle<double> >,
+typedef Batch<MLPIGDState<MutableArrayHandle<double> >, MLPIGDState<ArrayHandle<double> >,
         MLP<MLPModel<MutableArrayHandle<double> >, MLPTuple > > MLPIGDAlgorithm;
 
 typedef Loss<MLPIGDState<MutableArrayHandle<double> >, MLPIGDState<ArrayHandle<double> >,
@@ -86,10 +87,8 @@ mlp_igd_transition::run(AnyType &args) {
                            reinterpret_cast<const double *>(numbersOfUnits.ptr()));
             state.task.stepsize = stepsize;
 
-
             const int activation = args[6].getAs<int>();
             const int is_classification = args[7].getAs<int>();
-
             const bool warm_start = args[9].getAs<bool>();
             const int n_tuples = args[11].getAs<int>();
             const double lambda = args[12].getAs<double>();
@@ -168,7 +167,7 @@ mlp_igd_final::run(AnyType &args) {
 
     L2<MLPModelType>::lambda = state.task.lambda;
     state.algo.loss = state.algo.loss/static_cast<double>(state.algo.numRows);
-    state.algo.loss += L2<MLPModelType>::loss(state.task.model);
+    //state.algo.loss += L2<MLPModelType>::loss(state.task.model);
     MLPIGDAlgorithm::final(state);
 
     return state;

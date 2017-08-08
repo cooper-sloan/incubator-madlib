@@ -46,6 +46,13 @@ public:
         independent_variables_type;
     typedef typename Tuple::dependent_variable_type dependent_variable_type;
 
+    static void incrementGradient(
+            model_type                          &model,
+            model_type                          &gradient,
+            const independent_variables_type    &x,
+            const dependent_variable_type       &y,
+            const double                        &stepsize);
+
     static void gradientInPlace(
             model_type                          &model,
             const independent_variables_type    &x,
@@ -112,6 +119,35 @@ private:
 
 template <class Model, class Tuple>
 double MLP<Model, Tuple>::lambda = 0;
+
+template <class Model, class Tuple>
+void
+MLP<Model, Tuple>::incrementGradient(
+        model_type                          &model,
+        model_type                          &gradient,
+        const independent_variables_type    &x,
+        const dependent_variable_type       &y_true,
+        const double                        &stepsize) {
+    std::vector<ColumnVector> net;
+    std::vector<ColumnVector> o;
+    std::vector<ColumnVector> delta;
+    ColumnVector delta_N;
+
+    feedForward(model, x, net, o);
+    delta_N = o.back() - y_true;
+    backPropogate(delta_N, net, model, delta);
+
+    uint16_t N = model.u.size(); // assuming nu. of layers >= 1
+    uint16_t k;
+
+    for (k=0; k < N; k++){
+        int n = model.u[k].rows();
+        Matrix regularization = MLP<Model, Tuple>::lambda*model.u[k];
+        // Do not penalize bias
+        regularization.row(0).setZero();
+        gradient.u[k] -= stepsize * (o[k] * delta[k].transpose() + regularization);
+    }
+}
 
 template <class Model, class Tuple>
 void
