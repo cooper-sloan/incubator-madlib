@@ -13,7 +13,7 @@ mad_vec = version_wrapper.select_vecfunc()
 
 # ========================================================================
 
-def __utils_ind_var_scales(tbl_data, col_ind_var, dimension, schema_madlib):
+def __utils_ind_var_scales(tbl_data, col_ind_var, dimension, schema_madlib, x_mean_table=None):
     """
     The mean and standard deviation for each dimension of an array stored
     in a column.
@@ -23,8 +23,11 @@ def __utils_ind_var_scales(tbl_data, col_ind_var, dimension, schema_madlib):
         the mean and std. dev values respectively.
 
     """
-    x_scales = plpy.execute(
-        """
+    create_table = ""
+    if x_mean_table:
+        create_table = "CREATE TEMP TABLE {0} AS ".format(x_mean_table)
+    query = """
+        {create_table}
         SELECT (f).*
         FROM (
             SELECT
@@ -32,11 +35,13 @@ def __utils_ind_var_scales(tbl_data, col_ind_var, dimension, schema_madlib):
                     {schema_madlib}.utils_var_scales({col_ind_var}, {dimension})) as f
             FROM
                 {tbl_data}
-        ) q2
-        """.format(**locals()))[0]
-    x_scales["mean"] = mad_vec(x_scales["mean"], text=False)
-    x_scales["std"] = mad_vec(x_scales["std"], text=False)
-    return x_scales
+        ) q2"""
+    x_scales = plpy.execute(query.format(**locals()))
+    if x_mean_table is None:
+        x_scales["mean"] = mad_vec(x_scales[0]["mean"], text=False)
+        x_scales["std"] = mad_vec(x_scales[0]["std"], text=False)
+        return x_scales
+
 # ========================================================================
 
 def __utils_ind_var_scales_grouping(tbl_data, col_ind_var, dimension,
